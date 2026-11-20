@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/*.keystore)",
+      "Read(./**/*.jks)",
+      "Read(./**/*.pem)",
+      "Read(~/**)",
+      "Bash(cat .env*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(eas:*)",
+      "Bash(vercel:*)",
+      "Bash(npm publish:*)"
+    ]
+  }
+}
