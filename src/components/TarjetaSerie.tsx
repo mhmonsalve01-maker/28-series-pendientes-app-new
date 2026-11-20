@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -7,29 +8,40 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
 
-import { decidir, type Decision } from '../services/decision';
+import { tic } from '../sensors/haptics';
+import { decidir, UMBRAL_DESPLAZAMIENTO, type Decision } from '../services/decision';
 import type { Serie } from '../services/seriesMock';
+
+export type Accion = 'quiero' | 'descartar' | 'vista';
 
 type Props = {
   serie: Serie;
-  onDecidir: (decision: 'quiero' | 'descartar') => void;
+  onDecidir: (accion: Accion) => void;
 };
 
 const DURACION_SALIDA = 250;
 
 export function TarjetaSerie({ serie, onDecidir }: Props) {
   const { width: ancho } = useWindowDimensions();
+  const router = useRouter();
   const x = useSharedValue(0);
   const y = useSharedValue(0);
+  const pasoUmbral = useRef(false);
 
-  function salir(decision: 'quiero' | 'descartar') {
-    const destino = decision === 'quiero' ? ancho * 1.5 : -ancho * 1.5;
+  function salir(accion: Accion) {
+    const destino = accion === 'descartar' ? -ancho * 1.5 : ancho * 1.5;
     x.value = withTiming(destino, { duration: DURACION_SALIDA });
-    setTimeout(() => onDecidir(decision), DURACION_SALIDA);
+    setTimeout(() => onDecidir(accion), DURACION_SALIDA);
+  }
+
+  function verDetalle() {
+    router.push(`/serie/${serie.id}`);
   }
 
   function terminar(dx: number, vx: number) {
+    pasoUmbral.current = false;
     const decision: Decision = decidir(dx, vx, ancho);
     if (decision === 'volver') {
       x.value = withSpring(0);
@@ -44,8 +56,23 @@ export function TarjetaSerie({ serie, onDecidir }: Props) {
     .onUpdate((e) => {
       x.value = e.translationX;
       y.value = e.translationY;
+      const pasa = Math.abs(e.translationX) >= ancho * UMBRAL_DESPLAZAMIENTO;
+      if (pasa && !pasoUmbral.current) void tic();
+      pasoUmbral.current = pasa;
     })
     .onEnd((e) => terminar(e.translationX, e.velocityX));
+
+  const dobleToque = Gesture.Tap().numberOfTaps(2).runOnJS(true).onEnd(verDetalle);
+
+  const pulsacionLarga = Gesture.LongPress()
+    .runOnJS(true)
+    .minDuration(600)
+    .onStart(() => {
+      void tic();
+      salir('vista');
+    });
+
+  const gestos = Gesture.Race(pan, dobleToque, pulsacionLarga);
 
   const estilo = useAnimatedStyle(() => ({
     transform: [
@@ -58,7 +85,7 @@ export function TarjetaSerie({ serie, onDecidir }: Props) {
 
   return (
     <View style={styles.contenedor}>
-      <GestureDetector gesture={pan}>
+      <GestureDetector gesture={gestos}>
         <Animated.View style={[styles.tarjeta, estilo]}>
           <Text style={styles.titulo}>{serie.nombre}</Text>
           <Text style={styles.generos}>{serie.generos}</Text>
@@ -84,6 +111,25 @@ export function TarjetaSerie({ serie, onDecidir }: Props) {
           <Text style={styles.textoBoton}>Quiero</Text>
         </Pressable>
       </View>
+
+      <View style={styles.botones}>
+        <Pressable
+          style={[styles.boton, styles.secundario]}
+          accessibilityRole="button"
+          accessibilityLabel={`Ver detalle de ${serie.nombre}`}
+          onPress={verDetalle}
+        >
+          <Text style={styles.textoBoton}>Detalle</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.boton, styles.secundario]}
+          accessibilityRole="button"
+          accessibilityLabel={`Marcar ${serie.nombre} como vista`}
+          onPress={() => salir('vista')}
+        >
+          <Text style={styles.textoBoton}>Ya la vi</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -92,7 +138,7 @@ const styles = StyleSheet.create({
   contenedor: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
   tarjeta: {
     width: '100%',
-    minHeight: 320,
+    minHeight: 300,
     borderRadius: 16,
     padding: 20,
     backgroundColor: '#ffffff',
@@ -105,9 +151,10 @@ const styles = StyleSheet.create({
   titulo: { fontSize: 24, fontWeight: '700', marginBottom: 4 },
   generos: { fontSize: 14, color: '#666', marginBottom: 12 },
   resumen: { fontSize: 16, lineHeight: 22 },
-  botones: { flexDirection: 'row', gap: 16, marginTop: 24 },
+  botones: { flexDirection: 'row', gap: 16, marginTop: 16 },
   boton: { paddingVertical: 14, paddingHorizontal: 28, borderRadius: 12 },
   descartar: { backgroundColor: '#c0392b' },
   quiero: { backgroundColor: '#27ae60' },
+  secundario: { backgroundColor: '#2c3e50' },
   textoBoton: { color: '#fff', fontWeight: '600', fontSize: 16 },
 });
