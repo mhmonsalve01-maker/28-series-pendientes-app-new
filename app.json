@@ -34,7 +34,13 @@
         }
       ],
       "expo-sqlite",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Permitir que la app use el movimiento del teléfono para decidir inclinándolo."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
