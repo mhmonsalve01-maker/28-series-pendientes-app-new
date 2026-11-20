@@ -1,14 +1,34 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useSQLiteContext } from 'expo-sqlite';
+import { useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { buscarSeries } from '../src/services/busqueda';
+import { buscarGuardadas } from '../src/repositories/serieRepository';
+import { buscarSeries, unirResultados } from '../src/services/busqueda';
 import { SERIES_MOCK } from '../src/services/seriesMock';
+import type { SerieGuardada } from '../src/services/tipos';
 
 export default function Buscar() {
   const router = useRouter();
+  const db = useSQLiteContext();
   const [texto, setTexto] = useState('');
-  const resultados = buscarSeries(SERIES_MOCK, texto);
+  const [guardadas, setGuardadas] = useState<SerieGuardada[]>([]);
+
+  useEffect(() => {
+    if (texto.trim() === '') return;
+    let cancelado = false;
+    async function buscar() {
+      const filas = await buscarGuardadas(db, texto);
+      if (!cancelado) setGuardadas(filas);
+    }
+    void buscar();
+    return () => {
+      cancelado = true;
+    };
+  }, [db, texto]);
+
+  const resultados =
+    texto.trim() === '' ? [] : unirResultados(guardadas, buscarSeries(SERIES_MOCK, texto));
 
   return (
     <View style={styles.pantalla}>

@@ -1,69 +1,57 @@
+import type { SQLiteDatabase } from 'expo-sqlite';
 import { useSyncExternalStore } from 'react';
 
-import type { Serie } from './seriesMock';
+import * as repo from '../repositories/serieRepository';
+import type { Estado, SerieBase, SerieGuardada } from './tipos';
 
-export type Estado = 'quiero' | 'viendo' | 'vista' | 'descartada';
-export type Registro = { estado: Estado; temporada: number | null; episodio: number | null };
-export type Decisiones = Record<number, Registro>;
-export type AlmacenLista = { decisiones: Decisiones; historial: number[] };
+export type { Estado, SerieBase, SerieGuardada } from './tipos';
 
-export const ALMACEN_VACIO: AlmacenLista = { decisiones: {}, historial: [] };
+export type EstadoLista = { filas: SerieGuardada[]; historial: number[] };
 
-export function pendientes(series: Serie[], decisiones: Decisiones): Serie[] {
-  return series.filter((s) => !(s.id in decisiones));
+// Series del catálogo que el usuario aún no decidió (RF-05: las descartadas no vuelven).
+export function pendientes<T extends { id: number }>(catalogo: T[], filas: { id: number }[]): T[] {
+  const decididas = new Set(filas.map((f) => f.id));
+  return catalogo.filter((s) => !decididas.has(s.id));
 }
 
-export function conDecision(a: AlmacenLista, id: number, estado: Estado): AlmacenLista {
-  if (id in a.decisiones) return a;
-  return {
-    decisiones: { ...a.decisiones, [id]: { estado, temporada: null, episodio: null } },
-    historial: [...a.historial, id],
-  };
-}
-
-export function sinUltima(a: AlmacenLista): AlmacenLista {
-  const id = a.historial[a.historial.length - 1];
-  if (id === undefined) return a;
-  const decisiones = { ...a.decisiones };
-  delete decisiones[id];
-  return { decisiones, historial: a.historial.slice(0, -1) };
-}
-
-export function conProgreso(
-  a: AlmacenLista,
-  id: number,
-  temporada: number,
-  episodio: number,
-): AlmacenLista {
-  const actual = a.decisiones[id];
-  const estado: Estado = actual?.estado === 'vista' ? 'vista' : 'viendo';
-  return {
-    ...a,
-    decisiones: { ...a.decisiones, [id]: { estado, temporada, episodio } },
-  };
-}
-
-// --- Almacén en memoria (se reemplaza por SQLite en el Hito 2) ---
-let almacen: AlmacenLista = ALMACEN_VACIO;
+let estado: EstadoLista = { filas: [], historial: [] };
 const oyentes = new Set<() => void>();
 
-function actualizar(nuevo: AlmacenLista) {
-  if (nuevo === almacen) return;
-  almacen = nuevo;
+function publicar(nuevo: EstadoLista) {
+  estado = nuevo;
   oyentes.forEach((o) => o());
 }
 
-export function decidirSerie(id: number, estado: Estado) {
-  actualizar(conDecision(almacen, id, estado));
-}
-export function deshacer() {
-  actualizar(sinUltima(almacen));
-}
-export function guardarProgreso(id: number, temporada: number, episodio: number) {
-  actualizar(conProgreso(almacen, id, temporada, episodio));
+const ahora = () => new Date().toISOString();
+
+export async function cargarLista(db: SQLiteDatabase): Promise<void> {
+  publicar({ ...estado, filas: await repo.listarActivas(db) });
 }
 
-export function useLista(): AlmacenLista {
+export async function decidirSerie(db: SQLiteDatabase, serie: SerieBase, nuevo: Estado): Promise<void> {
+  if (estado.filas.some((f) => f.id === serie.id)) return;
+  await repo.guardarDecision(db, serie, nuevo, ahora());
+  publicar({ filas: await repo.listarActivas(db), historial: [...estado.historial, serie.id] });
+}
+
+export async function deshacer(db: SQLiteDatabase): Promise<void> {
+  const id = estado.historial[estado.historial.length - 1];
+  if (id === undefined) return;
+  await repo.eliminarLogico(db, id, ahora());
+  publicar({ filas: await repo.listarActivas(db), historial: estado.historial.slice(0, -1) });
+}
+
+export async function guardarProgreso(
+  db: SQLiteDatabase,
+  serie: SerieBase,
+  temporada: number,
+  episodio: number,
+): Promise<void> {
+  await repo.guardarProgreso(db, serie, temporada, episodio, ahora());
+  publicar({ ...estado, filas: await repo.listarActivas(db) });
+}
+
+export function useLista(): EstadoLista {
   return useSyncExternalStore(
     (cb) => {
       oyentes.add(cb);
@@ -71,6 +59,6 @@ export function useLista(): AlmacenLista {
         oyentes.delete(cb);
       };
     },
-    () => almacen,
+    () => estado,
   );
 }

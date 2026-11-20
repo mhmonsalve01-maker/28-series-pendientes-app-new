@@ -1,16 +1,25 @@
 import { Stack, useLocalSearchParams } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { guardarProgreso, useLista, type SerieBase } from '../../src/services/lista';
 import { SERIES_MOCK } from '../../src/services/seriesMock';
 import { validarProgreso, type ErrorCampo } from '../../src/services/validacion';
 
 export default function SerieDetalle() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const serie = SERIES_MOCK.find((s) => s.id === Number(id));
+  const db = useSQLiteContext();
+  const { filas } = useLista();
+  const guardada = filas.find((f) => f.id === Number(id));
+  const serie: SerieBase | undefined = guardada ?? SERIES_MOCK.find((s) => s.id === Number(id));
 
-  const [temporada, setTemporada] = useState('');
-  const [episodio, setEpisodio] = useState('');
+  const [temporada, setTemporada] = useState(
+    guardada?.temporada_actual ? String(guardada.temporada_actual) : '',
+  );
+  const [episodio, setEpisodio] = useState(
+    guardada?.episodio_actual ? String(guardada.episodio_actual) : '',
+  );
   const [errores, setErrores] = useState<ErrorCampo[]>([]);
   const [mensaje, setMensaje] = useState('');
 
@@ -24,7 +33,7 @@ export default function SerieDetalle() {
 
   const errorDe = (campo: ErrorCampo['campo']) => errores.find((e) => e.campo === campo)?.mensaje;
 
-  function guardar() {
+  const guardar = async () => {
     const r = validarProgreso(temporada, episodio);
     if (!r.ok) {
       setErrores(r.errores);
@@ -32,15 +41,20 @@ export default function SerieDetalle() {
       return;
     }
     setErrores([]);
-    setMensaje(`Progreso guardado: temporada ${r.temporada}, episodio ${r.episodio}.`);
-  }
+    try {
+      await guardarProgreso(db, serie, r.temporada, r.episodio);
+      setMensaje(`Progreso guardado: temporada ${r.temporada}, episodio ${r.episodio}.`);
+    } catch {
+      setMensaje('No se pudo guardar el progreso. Intenta de nuevo.');
+    }
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.contenedor}>
       <Stack.Screen options={{ title: serie.nombre }} />
       <Text style={styles.titulo}>{serie.nombre}</Text>
-      <Text style={styles.generos}>{serie.generos}</Text>
-      <Text style={styles.resumen}>{serie.resumen}</Text>
+      <Text style={styles.generos}>{serie.generos ?? ''}</Text>
+      <Text style={styles.resumen}>{serie.resumen ?? ''}</Text>
 
       <Text style={styles.subtitulo}>Mi progreso</Text>
 
@@ -76,7 +90,7 @@ export default function SerieDetalle() {
         style={styles.boton}
         accessibilityRole="button"
         accessibilityLabel="Guardar progreso"
-        onPress={guardar}
+        onPress={() => void guardar()}
       >
         <Text style={styles.textoBoton}>Guardar progreso</Text>
       </Pressable>

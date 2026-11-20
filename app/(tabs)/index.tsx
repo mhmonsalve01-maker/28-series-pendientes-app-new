@@ -1,3 +1,4 @@
+import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -22,14 +23,15 @@ const MENSAJE: Record<EstadoInclinacion, string> = {
 };
 
 export default function Descubrir() {
-  const { decisiones, historial } = useLista();
-  const serie = pendientes(SERIES_MOCK, decisiones)[0];
+  const db = useSQLiteContext();
+  const { filas, historial } = useLista();
+  const serie = pendientes(SERIES_MOCK, filas)[0];
   const [inclinar, setInclinar] = useState(false);
 
   const estadoSensor = useInclinacion(inclinar, (decision) => {
     if (!serie) return;
     void tic();
-    decidirSerie(serie.id, decision === 'quiero' ? 'quiero' : 'descartada');
+    void decidirSerie(db, serie, decision === 'quiero' ? 'quiero' : 'descartada');
   });
 
   return (
@@ -38,7 +40,7 @@ export default function Descubrir() {
         <TarjetaSerie
           key={serie.id}
           serie={serie}
-          onDecidir={(accion) => decidirSerie(serie.id, ESTADO_POR_ACCION[accion])}
+          onDecidir={(accion) => void decidirSerie(db, serie, ESTADO_POR_ACCION[accion])}
         />
       ) : (
         <View style={styles.vacio}>
@@ -65,7 +67,7 @@ export default function Descubrir() {
           disabled={historial.length === 0}
           accessibilityRole="button"
           accessibilityLabel="Deshacer la última decisión"
-          onPress={deshacer}
+          onPress={() => void deshacer(db)}
         >
           <Text style={styles.textoBoton}>Deshacer</Text>
         </Pressable>
