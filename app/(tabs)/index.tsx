@@ -1,12 +1,18 @@
-import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { TarjetaSerie } from '../../src/components/TarjetaSerie';
+import { TarjetaSerie, type Accion } from '../../src/components/TarjetaSerie';
+import { decidirSerie, deshacer, pendientes, useLista, type Estado } from '../../src/services/lista';
 import { SERIES_MOCK } from '../../src/services/seriesMock';
 
+const ESTADO_POR_ACCION: Record<Accion, Estado> = {
+  quiero: 'quiero',
+  descartar: 'descartada',
+  vista: 'vista',
+};
+
 export default function Descubrir() {
-  const [indice, setIndice] = useState(0);
-  const serie = SERIES_MOCK[indice];
+  const { decisiones, historial } = useLista();
+  const serie = pendientes(SERIES_MOCK, decisiones)[0];
 
   return (
     <View style={styles.pantalla}>
@@ -14,7 +20,7 @@ export default function Descubrir() {
         <TarjetaSerie
           key={serie.id}
           serie={serie}
-          onDecidir={() => setIndice((i) => i + 1)}
+          onDecidir={(accion) => decidirSerie(serie.id, ESTADO_POR_ACCION[accion])}
         />
       ) : (
         <View style={styles.vacio}>
@@ -22,11 +28,11 @@ export default function Descubrir() {
         </View>
       )}
       <Pressable
-        style={[styles.deshacer, indice === 0 && styles.deshabilitado]}
-        disabled={indice === 0}
+        style={[styles.deshacer, historial.length === 0 && styles.deshabilitado]}
+        disabled={historial.length === 0}
         accessibilityRole="button"
         accessibilityLabel="Deshacer la última decisión"
-        onPress={() => setIndice((i) => Math.max(0, i - 1))}
+        onPress={deshacer}
       >
         <Text style={styles.textoDeshacer}>Deshacer</Text>
       </Pressable>
