@@ -4,7 +4,6 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/ui": "~58.0.29",
-    "@types/jest": "30.0.0",
     "expo": "~58.0.26",
     "expo-constants": "~58.0.16",
     "expo-device": "~58.0.5",
@@ -36,10 +35,12 @@
   },
   "devDependencies": {
     "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.3.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~58.0.4",
     "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
     "prettier": "^3.10.1",
     "typescript": "~6.0.3"
   },
@@ -52,7 +53,8 @@
     "lint": "expo lint app src",
     "typecheck": "tsc --noEmit",
     "format:check": "prettier --check .",
-    "test": "jest"
+    "test": "jest",
+    "prepare": "husky"
   },
   "private": true,
   "jest": {
