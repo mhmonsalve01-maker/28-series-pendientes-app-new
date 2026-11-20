@@ -1,4 +1,3 @@
-import { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -28,7 +27,7 @@ export function TarjetaSerie({ serie, onDecidir }: Props) {
   const router = useRouter();
   const x = useSharedValue(0);
   const y = useSharedValue(0);
-  const pasoUmbral = useRef(false);
+  const pasoUmbral = useSharedValue(false);
 
   function salir(accion: Accion) {
     const destino = accion === 'descartar' ? -ancho * 1.5 : ancho * 1.5;
@@ -41,7 +40,7 @@ export function TarjetaSerie({ serie, onDecidir }: Props) {
   }
 
   function terminar(dx: number, vx: number) {
-    pasoUmbral.current = false;
+    pasoUmbral.value = false;
     const decision: Decision = decidir(dx, vx, ancho);
     if (decision === 'volver') {
       x.value = withSpring(0);
@@ -57,8 +56,8 @@ export function TarjetaSerie({ serie, onDecidir }: Props) {
       x.value = e.translationX;
       y.value = e.translationY;
       const pasa = Math.abs(e.translationX) >= ancho * UMBRAL_DESPLAZAMIENTO;
-      if (pasa && !pasoUmbral.current) void tic();
-      pasoUmbral.current = pasa;
+      if (pasa && !pasoUmbral.value) void tic();
+      pasoUmbral.value = pasa;
     })
     .onEnd((e) => terminar(e.translationX, e.velocityX));
 
